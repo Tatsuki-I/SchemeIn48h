@@ -6,6 +6,8 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Control.Monad.Error
 import System.IO
+import System.Console.Haskeline
+import Data.Maybe
 
 data LispVal =
           Atom String
@@ -264,7 +266,7 @@ flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
 readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLine
+readPrompt prompt = flushStr prompt >> fromMaybe "" <$> (runInputT defaultSettings $ getInputLine "")
 
 until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
 until_ pred prompt action = do
