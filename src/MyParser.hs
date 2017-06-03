@@ -97,17 +97,17 @@ parseDottedList = do
         tail <- char '.' >> spaces >> parseExpr
         return $ DottedList head tail
 
-parseQuated :: Parser LispVal
-parseQuated = do
+parseQuoted :: Parser LispVal
+parseQuoted = do
         char '\''
         x <- parseExpr
-        return $ List [Atom "quate", x]
+        return $ List [Atom "quote", x]
 
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
         <|> parseString
         <|> parseNumber
-        <|> parseQuated
+        <|> parseQuoted
         <|> do char '('
                x <- try parseList <|> parseDottedList
                char ')'
@@ -159,7 +159,7 @@ primitives = [
         ("cons",      cons),
         ("eq?",       eqv),
         ("eqv?",      eqv),
-        ("equal?",    equal)]
+        ("eoual?",    equal)]
 
 numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> ThrowsError LispVal
 numericBinop op []            = throwError $ NumArgs 2 []
