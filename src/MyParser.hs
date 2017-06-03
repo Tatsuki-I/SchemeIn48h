@@ -34,6 +34,8 @@ instance Error LispError where
 
 type ThrowsError = Either LispError
 
+data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
+
 showVal :: LispVal -> String
 showVal (String contents)      = "\"" ++ contents ++ "\""
 showVal (Atom name)            = name
@@ -126,6 +128,12 @@ eval (List [Atom "if", pred, conseq, alt]) = do
 eval (List (Atom func : args))  = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
+evalString :: String -> IO String
+evalString expr = return $ extractValue $ trapError (liftM show $ readExpr expr >>= eval)
+
+evalAndPrint :: String -> IO ()
+evalAndPrint expr = evalString expr >>= putStrLn
+
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func)
         ($ args)
@@ -166,16 +174,6 @@ numericBinop op []            = throwError $ NumArgs 2 []
 numericBinop op singleVal@[_] = throwError $ NumArgs 2 singleVal
 numericBinop op params        = mapM unpackNum params >>= return . Number . foldl1 op
 
-unpackNum :: LispVal -> ThrowsError Integer
-unpackNum (Number n) = return n
-unpackNum (String n) = let parsed = reads n in
-        if null parsed
-                then throwError $ TypeMismatch "number" $ String n
-                else return $ fst $ parsed !! 0
-unpackNum (List [n]) = unpackNum n
-unpackNum notNum = throwError $ TypeMismatch "number" notNum
-
-
 boolBinop :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] -> ThrowsError LispVal
 boolBinop unpacker op args =
         if length args /= 2
@@ -188,6 +186,15 @@ numBoolBinop  = boolBinop unpackNum
 strBoolBinop  = boolBinop unpackStr
 boolBoolBinop = boolBinop unpackBool
 
+unpackNum :: LispVal -> ThrowsError Integer
+unpackNum (Number n) = return n
+unpackNum (String n) = let parsed = reads n in
+        if null parsed
+                then throwError $ TypeMismatch "number" $ String n
+                else return $ fst $ parsed !! 0
+unpackNum (List [n]) = unpackNum n
+unpackNum notNum = throwError $ TypeMismatch "number" notNum
+
 unpackStr :: LispVal -> ThrowsError String
 unpackStr (String s) = return s
 unpackStr (Number s) = return $ show s
@@ -197,6 +204,14 @@ unpackStr notString  = throwError $ TypeMismatch "string" notString
 unpackBool :: LispVal -> ThrowsError Bool
 unpackBool (Bool b) = return b
 unpackBool notBool = throwError $ TypeMismatch "boolean" notBool
+
+unpackEquals :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
+unpackEquals arg1 arg2 (AnyUnpacker unpacker) =
+        do
+                unpacked1 <- unpacker arg1
+                unpacked2 <- unpacker arg2
+                return $ unpacked1 == unpacked2
+        `catchError` (const $ return False)
 
 car :: [LispVal] -> ThrowsError LispVal
 car [List (x : xs)]         = return x
@@ -232,16 +247,6 @@ eqv [(List arg1), (List arg2)]             = return $ Bool $ (length arg1 == len
 eqv [_, _]                                 = return $ Bool False
 eqv badArgList                             = throwError $ NumArgs 2 badArgList
 
-data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
-
-unpackEquals :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
-unpackEquals arg1 arg2 (AnyUnpacker unpacker) =
-        do
-                unpacked1 <- unpacker arg1
-                unpacked2 <- unpacker arg2
-                return $ unpacked1 == unpacked2
-        `catchError` (const $ return False)
-
 equal :: [LispVal] -> ThrowsError LispVal
 equal [arg1, arg2] = do
         primitiveEquals <- liftM or $ mapM (unpackEquals arg1 arg2)
@@ -250,17 +255,16 @@ equal [arg1, arg2] = do
         return $ Bool $ (primitiveEquals || let (Bool x) = eqvEquals in x)
 equal badArgList = throwError $ NumArgs 2 badArgList
 
+readExpr :: String -> ThrowsError LispVal
+readExpr input = case parse parseExpr "lisp" input of
+        Left err -> throwError $ Parser err
+        Right val -> return val
+
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
 readPrompt :: String -> IO String
 readPrompt prompt = flushStr prompt >> getLine
-
-evalString :: String -> IO String
-evalString expr = return $ extractValue $ trapError (liftM show $ readExpr expr >>= eval)
-
-evalAndPrint :: String -> IO ()
-evalAndPrint expr = evalString expr >>= putStrLn
 
 until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
 until_ pred prompt action = do
@@ -272,9 +276,4 @@ until_ pred prompt action = do
 runRepl :: IO ()
 runRepl = until_ (== "quit") (readPrompt "Scheme>>> ") evalAndPrint
 
-
-readExpr :: String -> ThrowsError LispVal
-readExpr input = case parse parseExpr "lisp" input of
-        Left err -> throwError $ Parser err
-        Right val -> return val
 
