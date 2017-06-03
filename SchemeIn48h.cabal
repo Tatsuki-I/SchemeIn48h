@@ -2,7 +2,7 @@ name:                SchemeIn48h
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/SchemeIn48h#readme
+homepage:            https://github.com/Tatsuki-I/SchemeIn48h#readme
 license:             BSD3
 license-file:        LICENSE.md
 author:              Author name here
@@ -16,10 +16,12 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
+                     , MyParser
   build-depends:       base >= 4.7 && < 5
+                     , parsec
   default-language:    Haskell2010
 
-executable SchemeIn48h-exe
+executable myscheme
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
@@ -27,7 +29,7 @@ executable SchemeIn48h-exe
                      , SchemeIn48h
   default-language:    Haskell2010
 
-test-suite SchemeIn48h-test
+test-suite scheme-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
@@ -38,4 +40,4 @@ test-suite SchemeIn48h-test
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/SchemeIn48h
+  location: https://github.com/Tatsuki-I/SchemeIn48h
